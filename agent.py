@@ -30,7 +30,7 @@ class Agent(metaclass = ABCMeta):
             distrb = []
             while True:
                 self.episode(self.root)
-                if i % 1000 == 0:
+                if i % 100 == 0:
                     self.logger.info('X'*70)
                     self.logger.info('Round:\t%d'%(i))
                     self.logger.info('X'*70)
@@ -55,7 +55,7 @@ class Agent(metaclass = ABCMeta):
                     depth = 1
                     distrb = curr_root.get_winrate_of_edges()
 
-                while depth < 10:
+                while depth < len(self.game.available_actions):
                     i = 0
                     while True:
                         self.episode(curr_root)
@@ -64,7 +64,7 @@ class Agent(metaclass = ABCMeta):
                             self.logger.info('Round:\t%d'%(i))
                             self.logger.info('X'*70)
                         if i % max_len == 0 and i != 0:
-                            curr_distrb = curr_root.get_winrate_of_edges()
+                            curr_distrb = curr_root.get_distribution()
                             if len(distrb) > 0 and abs(util.kl_divergence(np.array(distrb), np.array(curr_distrb))) < self.eps and i > min_episodes:
                                 self.logger.info('Distribution stable after \t%d episodes'%(i))
                                 break
@@ -76,9 +76,11 @@ class Agent(metaclass = ABCMeta):
                     curr_root = edges[0].out_node
                     if j == 0 and depth == 0:
                         best_edges = edges[1:(n_edges + 1)]
-                    if curr_root.is_leaf() or (curr_root.game_is_done and curr_root.player == 1):
+                    #if curr_root.is_leaf() or (curr_root.game_is_done and curr_root.player == 1):
+                    #    break
+                    if curr_root.is_leaf() or self.game.is_done(curr_root.state.state, 0):
                         break
-                    distrb = curr_root.get_winrate_of_edges()
+                    distrb = curr_root.get_distribution()
                     depth += 1
 
     @abstractmethod
@@ -115,7 +117,7 @@ class Agent(metaclass = ABCMeta):
         available_actions = self.game.get_available_actions(state_leaf)
         if len(available_actions) == 0:
             return [], []
-        states = [self.game.simulate_action(state_leaf, action.state) for action in available_actions]
+        states = [self.game.simulate_action(state_leaf, action) for action in available_actions]
         values, is_dones = self.game.evaluate_actions_at_state(available_actions, state_leaf, player)
         edges = [MC_edge(action, leaf, MC_node(state, player=player, root=root, depth=leaf.depth + 1, game_is_done=is_done), self.c, value) for action, state, value, is_done in zip(available_actions, states, values, is_dones)]
         return edges, values
@@ -172,8 +174,8 @@ class Minus_Agent(Agent):
         self.mct.add_actions(self.game.available_actions) 
         self.num_episode = 0
         self.c = c
-        self.eps = 0.0001
-        self.max_depth = 8
+        self.eps = 0.000001
+        self.max_depth = len(self.game.available_actions) * 0.75
         self.distrb = []
     
 
@@ -231,7 +233,7 @@ class Minus_Agent(Agent):
             action = self.game.get_next_action(new_state, leaf.player)
             if action is None:
                 break
-            new_state = self.game.simulate_action(new_state, action.state)
+            new_state = self.game.simulate_action(new_state, action)
             new_node = MC_node(new_state, depth=leaf.depth + counter, player=leaf.player, root=leaf.root)
             states.append(new_state)
             nodes.append(new_node)
@@ -250,7 +252,7 @@ class Minus_Agent(Agent):
         else:
             factor = -1
         for i in range(1, n + 1):
-            action = self.game.normalize(path_0[i - 1].action.state)
+            action = self.game.invert(path_0[i - 1].action.state)
             ranks_0 += factor * i * action
         mask_0 = path_0[-1].out_node.state.state
             
@@ -260,11 +262,31 @@ class Minus_Agent(Agent):
             n = len(path_1)
             factor *= -1
             for i in range(1, n + 1):
-                action = self.game.normalize(path_1[i - 1].action.state)
+                action = self.game.invert(path_1[i - 1].action.state)
                 ranks_1 += factor * i * action
                 
             mask_1 = path_1[-1].out_node.state.state
         return ranks_0, ranks_1, mask_0, mask_1
+
+    def get_best_path_as_list(self):
+        _, path_0, path_1 = self.mct.selection_with_N()
+        n = len(path_0)
+        ranks_0 = []
+        if self.game.start_label == self.game.target_label:
+            factor = 1
+        else:
+            factor = -1
+        for i in range(1, n + 1):
+            ranks_0.append((path_0[i - 1].out_node.state.state[-1].strip(), i))
+            
+        ranks_1 = []
+        if len(path_1) > 0 and path_1[-1].out_node.game_is_done:
+            n = len(path_1)
+            factor *= -1
+            for i in range(1, n + 1):
+                ranks_1.append((path_1[i - 1].out_node.state.state[-1].strip(), i))
+                
+        return ranks_0, ranks_1, path_0, path_1
 
     def get_best_actions(self, masked_sample, n=5):
         if n == 0:
@@ -287,7 +309,7 @@ class Minus_Agent(Agent):
         else:
             factor = -1
         for i in range(len(edges)):
-            action = self.game.normalize(edges[i].action.state)
+            action = self.game.invert(edges[i].action.state)
             ranks += factor * (i + 1) * action
             mask += action
         return ranks, mask 

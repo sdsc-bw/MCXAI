@@ -56,7 +56,7 @@ class MC_node():
         dat.loc['Part2', :] = self.get_part()
         dat.loc['Value', :] = self.get_value_of_edges()
         dat.loc['Original Value'] = self.get_orig_value_of_edges()
-        dat.loc['Game is done'] = self.game_is_done
+        dat.loc['Game is done'] = self.get_done_of_edges()
         return dat
             
     def get_num_edges(self):
@@ -77,12 +77,17 @@ class MC_node():
     def get_orig_value_of_edges(self):
         return [i.value for i in self.edges]
     
-    
     def get_winrate_of_edges(self):
         return [i.get_winrate() for i in self.edges]
     
+    def get_distribution(self):
+        return [i.get_distribution() for i in self.edges]
+    
     def get_W_of_edges(self):
         return [i.W for i in self.edges]
+    
+    def get_done_of_edges(self):
+        return [i.out_node.game_is_done for i in self.edges]
     
     def get_N(self):
         return self.N
@@ -153,6 +158,12 @@ class MC_edge():
     def get_winrate(self):
         if self.N == 0:
             return self.value
+        else:
+            return self.W/self.N
+        
+    def get_distribution(self):
+        if self.N == 0:
+            return 0.0
         else:
             return self.W/self.N
         

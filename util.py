@@ -35,3 +35,15 @@ def kl_divergence(p, q):
     q = q+epsilon
     divergence = np.sum(p*np.log(p/q))
     return divergence
+
+def dim(a):
+    if not type(a) == list:
+        return 0
+    return 1 + dim(a[0])
+
+def anydup(thelist):
+    seen = set()
+    for x in thelist:
+        if x in seen: return True
+        seen.add(x)
+    return False
