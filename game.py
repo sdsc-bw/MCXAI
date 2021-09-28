@@ -230,6 +230,7 @@ class Minus_Text_Game(Minus_Game):
             logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
             self.logger = logging.getLogger(__name__)
             
+        sample = " " + sample + " "
         self.sample = self._preprocess_sample(sample)
         self.sample_state = self._preprocess_sample_state(sample)
         self.org_sample = sample
