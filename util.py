@@ -22,7 +22,7 @@ def change_in_log_odds(predict, original_sample, masked_sample, start, target, l
     original_pred_target = predict(original_sample)[0][target]
     masked_pred_target = predict(masked_sample)[0][target]
     
-    change = log_odds(original_pred_start) - log_odds(masked_pred_start) + log_odds(masked_pred_target) - log_odds(original_pred_target)
+    change = log_odds(masked_pred_target) - log_odds(original_pred_target)
 
     return change
 

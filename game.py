@@ -117,6 +117,9 @@ class Minus_Game(Game):
             self.logger = logging.getLogger(__name__)
             
         self.sample = sample 
+        self.sample_dim = util.dim(sample)
+        if self.sample_dim == 0:
+            sample = [sample]
         self.start_label = np.argmax(predict(sample))
         self.target_label = target_label 
         self.predict = predict
@@ -142,8 +145,10 @@ class Minus_Game(Game):
     def get_prediction_change(self, actions, state, player):
         new_states = [state.minus(State(i.state)) for i in actions]
         inp1 = state.state * self.sample
-        inp2 = np.concatenate([i.state * self.sample for i in new_states])
-        
+        inp2 = [i.state * self.sample for i in new_states]
+        if self.sample_dim == 0:
+            inp1 = [inp1]
+            inp2 = [inp2][0]
         out1 = self.predict(inp1)[0, self.target_label]
         out1 = np.repeat(out1[np.newaxis], len(inp2), axis=0)
         out2 = self.predict(inp2)[:, self.target_label]
@@ -175,8 +180,7 @@ class Minus_Game(Game):
    
     def is_done(self, state, player):
         if state.shape != self.sample.shape:
-            inp = np.concatenate([i * self.sample for i in state])
-            out = self.predict(inp)
+            out = self.predict(state)
             pred_t = out[:, self.target_label]
             argmax = np.argmax(out, axis=1)
             if player == 0 and self.target_label == self.start_label:
@@ -189,6 +193,8 @@ class Minus_Game(Game):
                 return np.logical_and(argmax != self.target_label, np.less_equal(pred_t, 1 - self.threshold))
         else:
             inp = state * self.sample
+            if self.sample_dim == 0:
+                inp = [inp]
             out = self.predict(inp)
             pred_t = out[0, self.target_label]
             argmax = np.argmax(out)
@@ -212,14 +218,23 @@ class Minus_Game(Game):
     def _generate_available_actions(self):
         all_actions = []
         actions = []
-        for i in range(0, self.sample.shape[1] - self.kernel_shape[1] + 1, self.kernel_shape[0]):
-            for j in range(0, self.sample.shape[0] - self.kernel_shape[0] + 1, self.kernel_shape[1]):
-                mask = np.ones(self.sample.shape)
-                mask[j:j+self.kernel_shape[1], i:i+self.kernel_shape[0]] = 0
+        if self.sample_dim > 0:
+            for i in range(0, self.sample.shape[1] - self.kernel_shape[1] + 1, self.kernel_shape[0]):
+                for j in range(0, self.sample.shape[0] - self.kernel_shape[0] + 1, self.kernel_shape[1]):
+                    mask = np.ones(self.sample.shape)
+                    mask[j:j+self.kernel_shape[1], i:i+self.kernel_shape[0]] = 0
+                    action = State(mask)
+                    all_actions.append(action)
+                    if not np.equal(self.sample, self.sample * mask).all():
+                        actions.append(action)
+        else:
+            for j in range(0, self.sample.shape[0] - self.kernel_shape[0] + 1, self.kernel_shape[0]):
+                mask = np.ones((self.sample.shape[0], ))
+                mask[j:j+self.kernel_shape[0]] = 0
                 action = State(mask)
                 all_actions.append(action)
                 if not np.equal(self.sample, self.sample * mask).all():
-                    actions.append(action)
+                        actions.append(action)
         return all_actions, actions
     
 class Minus_Text_Game(Minus_Game):

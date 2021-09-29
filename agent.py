@@ -247,6 +247,7 @@ class Minus_Agent(Agent):
         _, path_0, path_1 = self.mct.selection_with_N()
         n = len(path_0)
         ranks_0 = np.zeros(self.game.sample.shape)
+        mask_0 = np.zeros(self.game.sample.shape)
         if self.game.start_label == self.game.target_label:
             factor = 1
         else:
@@ -254,19 +255,17 @@ class Minus_Agent(Agent):
         for i in range(1, n + 1):
             action = self.game.invert(path_0[i - 1].action.state)
             ranks_0 += factor * i * action
-        mask_0 = path_0[-1].out_node.state.state
-            
+            mask_0 += action
         ranks_1 = np.zeros(self.game.sample.shape)
-        mask_1 = np.ones(self.game.sample.shape)
+        mask_1 = np.zeros(self.game.sample.shape)
         if len(path_1) > 0 and path_1[-1].out_node.game_is_done:
             n = len(path_1)
             factor *= -1
             for i in range(1, n + 1):
                 action = self.game.invert(path_1[i - 1].action.state)
                 ranks_1 += factor * i * action
-                
-            mask_1 = path_1[-1].out_node.state.state
-        return ranks_0, ranks_1, mask_0, mask_1
+                mask_1 += action
+        return ranks_0, ranks_1, self.game.invert(mask_0), self.game.invert(mask_1)
 
     def get_best_path_as_list(self):
         _, path_0, path_1 = self.mct.selection_with_N()
