@@ -8,18 +8,14 @@ import pickle
 from state import State
 
 class MC_node():
-    def __init__(self, state, root=None, player=0, game_is_done=False, parent_edge=None, depth=None):
+    def __init__(self, state, game_is_done=False, parent_edge=None, depth=None):
         self.state = state
         self.N = 0
         self.edges = []
         self.sorted = False # sinify whether self.edges is sorted or not, only roll out in MCT can set it to false
-        self.acc = 0
         self.depth = depth
         self.parent_edge = parent_edge
         self.game_is_done = game_is_done
-        self.root = root
-        self.player = player
-        self.N1 = 0
         
     def add_edge(self, e):
         self.edges.append(e)
@@ -32,6 +28,7 @@ class MC_node():
             return True
         else:
             return False
+        
     def get_actions_of_edges(self):
         return [i.action for i in self.edges]
     
@@ -72,7 +69,7 @@ class MC_node():
         return [i.get_part() for i in self.edges]
     
     def get_value_of_edges(self):
-        return [i.get_value(self.player) for i in self.edges]
+        return [i.get_value() for i in self.edges]
     
     def get_orig_value_of_edges(self):
         return [i.value for i in self.edges]
@@ -100,7 +97,7 @@ class MC_node():
         self.sorted = False
     
     def sort_edges_by_value(self):
-        return sorted(self.edges, key = lambda x: x.get_value(self.player), reverse = True)
+        return sorted(self.edges, key = lambda x: x.get_value(), reverse = True)
     
     def sort_edges_by_winrate(self):
         return sorted(self.edges, key = lambda x: x.get_winrate(), reverse = True)
@@ -141,13 +138,11 @@ class MC_edge():
     def get_state(self):
         return (self.Q, self.U, self.W, self.N, self.P)
     
-    def get_value(self, player):
-        if self.N == 0 or player == 1 and self.in_node.N1 == 0:
+    def get_value(self):
+        if self.N == 0:
             return 4 + self.value
-        elif player == 0:
-            return self.get_winrate() + self.c*np.sqrt(ln(self.in_node.N)/(self.N))
         else:
-            return self.get_winrate() + self.c*np.sqrt(ln(self.in_node.N1)/(self.N))
+            return self.get_winrate() + self.c*np.sqrt(ln(self.in_node.N)/(self.N))
         
     def get_part(self):
         if self.N == 0:
@@ -170,13 +165,7 @@ class MC_edge():
         
 class MCFE_tree:
 
-    def __init__(self, root_state, logger = None):
-        # set logger
-        if logger:
-            self.logger = logger
-        else:
-            logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-            self.logger = logging.getLogger(__name__)
+    def __init__(self, root_state):
         # init attribute
         self.root = MC_node(root_state, depth=0)
         self.tree = set()
@@ -184,40 +173,34 @@ class MCFE_tree:
         self.add_node_to_tree(self.root)
             
     def add_node_to_tree(self, node):
-        #self.logger.info('Add node %s to root tree'%node.get_id()) # logger
         if node not in self.tree:
             self.tree.add(node)
             return 1
         else:
-            #self.logger.error("Fail to add node %s to root tree, node existed"%node.get_id())
             return 0
         
     def add_actions(self, action_list):
         for a in action_list:
             self.actions.add(State(a))
             
-    def back_fill(self, value_0, value_1, path_0, path_1):
+    def back_fill(self, reward, node):
         """
         Performs the backpropagation.
         
         Keyword arguments:
-        value_0 -- reward for the first player
-        value_1 -- reward for the second player
-        path_0 -- path of the first player
-        path_1 -- path of the second player
+        reward -- reward for the current node/state
+        node -- node corresponding to the current state
         """
-        if len(path_0) > 0:
-            path_0[-1].out_node.N += 1
-            for edge in path_0:
-                edge.in_node.N += 1
-                edge.N += 1
-                edge.W += value_0
-        if len(path_1) > 0:
-            path_1[-1].out_node.N1 += 1
-            for edge in path_1:
-                edge.in_node.N1 += 1
-                edge.N += 1
-                edge.W += value_1
+        n = node
+        n.N += 1
+        while n != self.root:
+            #print("Hello")
+            #print(n)
+            edge = n.parent_edge
+            edge.N += 1
+            edge.W += reward
+            n = n.parent_edge.in_node
+            n.N += 1
                 
     def expansion(self, leaf, edges, values):
         """
@@ -247,38 +230,30 @@ class MCFE_tree:
         Keyword arguments:
         leaf -- node from where the selection starts
         """
-        path_0 = []
-        path_1 = []
+        path = []
         current_node = root
         if root.is_leaf():
-            return root, path_0, path_1 # the paths here are empty
+            return root, path # the paths here are empty
         else:
             while not current_node.is_leaf():
                 edges = current_node.sort_edges_by_value()
                 edge = edges[0]
-                if edge.out_node.player == 0:
-                    path_0.append(edge)
-                else:
-                    path_1.append(edge)
+                path.append(edge)
                 current_node = edge.get_out_node()
-        return current_node, path_0, path_1
+        return current_node, path
     
     def selection_with_N(self):
         """
         Selection with highest N.
         """
-        path_0 = []
-        path_1 = []
+        path = []
         current_node = self.root
         if self.root.is_leaf():
-            return self.root, path_0, path_1 # the paths here are empty
+            return self.root, path # the paths here are empty
         else:
             while not current_node.is_leaf():
                 edges = current_node.sort_edges_by_N()
                 edge = edges[0]
-                if edge.out_node.player == 0:
-                    path_0.append(edge)
-                else:
-                    path_1.append(edge)
+                path.append(edge)
                 current_node = edge.get_out_node()
-        return current_node, path_0, path_1
+        return current_node, path
