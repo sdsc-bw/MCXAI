@@ -34,7 +34,7 @@ class Agent(metaclass = ABCMeta):
                 distrb = curr_root.get_distribution()
             for i in range(max_episodes):
                 self.episode(curr_root)
-                if i % 10 == 0:
+                if i % 1000 == 0:
                     logger.info('X'*70)
                     logger.info('Episode:\t%d'%(i))
                     logger.info('X'*70)
