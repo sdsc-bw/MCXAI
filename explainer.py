@@ -19,7 +19,12 @@ class Explainer:
         target_label -- label which should be explained
         max_episodes -- maximal number of episodes per step
         eps -- constant to define when the current node is stable
-        TODO
+        c -- exploration-parameter, defines the dimension of exploration in the MCT
+        kernel_size -- size of the kernel for segmentation
+        max_depth -- defines the maximal depth during search
+        ratio -- defines the impact of the prediction probability in the reward
+        threshold_1 -- defines the threshold of the predicted probability of ending the game for the first game
+        threshold_2 -- defines the threshold of the predicted probability of ending the game for the second game
         """
         self.sample = sample
         self.predict = predict
